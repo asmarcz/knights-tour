@@ -70,8 +70,7 @@ fn add_jumps(dimensions: Pos, from_pos: Pos, acc: &mut Vec<Pos>) {
     }
 }
 
-pub fn solve(dimensions: Pos, init_pos: Pos) -> Vec<Vec<Pos>> {
-    let mut solutions: Vec<Vec<Pos>> = vec![];
+pub fn solve(dimensions: Pos, init_pos: Pos) -> impl Iterator<Item = Vec<Pos>> {
     let Pos {
         x: width,
         y: height,
@@ -80,34 +79,35 @@ pub fn solve(dimensions: Pos, init_pos: Pos) -> Vec<Vec<Pos>> {
 
     let mut visited_sq_cnt = 0;
     let mut stack = vec![(init_pos, false)];
-
     let mut jump_acc = vec![];
-    while !stack.is_empty() {
-        let (curr_pos, should_close) = stack.pop().unwrap();
-        let curr_square = &mut board[curr_pos.x][curr_pos.y];
-        if should_close {
-            *curr_square = false;
-            visited_sq_cnt -= 1;
-            continue;
-        }
-        *curr_square = true;
-        visited_sq_cnt += 1;
-        stack.push((curr_pos, true));
+    std::iter::from_fn(move || {
+        while !stack.is_empty() {
+            let (curr_pos, should_close) = stack.pop().unwrap();
+            let curr_square = &mut board[curr_pos.x][curr_pos.y];
+            if should_close {
+                *curr_square = false;
+                visited_sq_cnt -= 1;
+                continue;
+            }
+            *curr_square = true;
+            visited_sq_cnt += 1;
+            stack.push((curr_pos, true));
 
-        if visited_sq_cnt == width * height {
-            solutions.push(stack.iter().filter(|p| p.1).map(|p| p.0).collect());
-        }
+            if visited_sq_cnt == width * height {
+                return Some(stack.iter().filter(|p| p.1).map(|p| p.0).collect());
+            }
 
-        jump_acc.truncate(0);
-        add_jumps(dimensions, curr_pos, &mut jump_acc);
-        for next_pos in &jump_acc {
-            if !board[next_pos.x][next_pos.y] {
-                stack.push((*next_pos, false));
+            jump_acc.truncate(0);
+            add_jumps(dimensions, curr_pos, &mut jump_acc);
+            for next_pos in &jump_acc {
+                if !board[next_pos.x][next_pos.y] {
+                    stack.push((*next_pos, false));
+                }
             }
         }
-    }
 
-    solutions
+        None
+    })
 }
 
 #[cfg(test)]
@@ -127,14 +127,14 @@ mod tests {
     #[test]
     fn boards() {
         assert_eq!(
-            solve(Pos { x: 3, y: 3 }, Pos { x: 0, y: 0 }),
+            solve(Pos { x: 3, y: 3 }, Pos { x: 0, y: 0 }).collect::<Vec<Vec<Pos>>>(),
             Vec::<Vec<Pos>>::new()
         );
 
         let mut num_solutions = 0;
         for i in 0..5 {
             for j in 0..5 {
-                num_solutions += solve(Pos { x: 5, y: 5 }, Pos { x: i, y: j }).len();
+                num_solutions += solve(Pos { x: 5, y: 5 }, Pos { x: i, y: j }).count();
             }
         }
         // https://en.m.wikipedia.org/wiki/Knight%27s_tour
