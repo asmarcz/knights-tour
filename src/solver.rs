@@ -83,7 +83,11 @@ pub fn solve(dimensions: Pos, init_pos: Pos) -> impl Iterator<Item = Vec<Pos>> {
     std::iter::from_fn(move || {
         while !stack.is_empty() {
             let (curr_pos, should_close) = stack.pop().unwrap();
-            let curr_square = &mut board[curr_pos.x][curr_pos.y];
+            let curr_square = unsafe {
+                board
+                    .get_unchecked_mut(curr_pos.x)
+                    .get_unchecked_mut(curr_pos.y)
+            };
             if should_close {
                 *curr_square = false;
                 visited_sq_cnt -= 1;
@@ -100,7 +104,9 @@ pub fn solve(dimensions: Pos, init_pos: Pos) -> impl Iterator<Item = Vec<Pos>> {
             jump_acc.truncate(0);
             add_jumps(dimensions, curr_pos, &mut jump_acc);
             for next_pos in &jump_acc {
-                if !board[next_pos.x][next_pos.y] {
+                let already_visited =
+                    unsafe { board.get_unchecked(next_pos.x).get_unchecked(next_pos.y) };
+                if !already_visited {
                     stack.push((*next_pos, false));
                 }
             }
