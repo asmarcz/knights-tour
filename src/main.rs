@@ -6,9 +6,7 @@ mod solver;
 
 fn main() {
     let (tx, rx): (Sender<Vec<Pos>>, Receiver<Vec<Pos>>) = mpsc::channel();
-    std::thread::spawn(move || {
-        solve(Pos { x: 6, y: 6 }, Pos { x: 0, y: 0 }, tx);
-    });
+    solve(Pos { x: 6, y: 6 }, Pos { x: 2, y: 2 }, tx);
 
     let mut sol_cnt = 0;
     while let Ok(solution) = rx.recv() {

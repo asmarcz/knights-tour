@@ -72,15 +72,14 @@ fn add_jumps(dimensions: Pos, from_pos: Pos, acc: &mut Vec<Pos>) {
     }
 }
 
-pub fn solve(dimensions: Pos, init_pos: Pos, sender: Sender<Vec<Pos>>) {
-    let Pos {
-        x: width,
-        y: height,
-    } = dimensions;
-    let mut board = vec![vec![false; height]; width];
-
-    let mut visited_sq_cnt = 0;
-    let mut stack = vec![(init_pos, false)];
+fn solve_branch(
+    dimensions: Pos,
+    sender: Sender<Vec<Pos>>,
+    mut board: Vec<Vec<bool>>,
+    mut stack: Vec<(Pos, bool)>,
+    mut visited_sq_cnt: usize,
+    target_sq_cnt: usize,
+) {
     let mut jump_acc = vec![];
     while !stack.is_empty() {
         let (curr_pos, should_close) = stack.pop().unwrap();
@@ -98,7 +97,7 @@ pub fn solve(dimensions: Pos, init_pos: Pos, sender: Sender<Vec<Pos>>) {
         visited_sq_cnt += 1;
         stack.push((curr_pos, true));
 
-        if visited_sq_cnt == width * height {
+        if visited_sq_cnt == target_sq_cnt {
             sender
                 .send(stack.iter().filter(|p| p.1).map(|p| p.0).collect())
                 .unwrap();
@@ -113,6 +112,27 @@ pub fn solve(dimensions: Pos, init_pos: Pos, sender: Sender<Vec<Pos>>) {
                 stack.push((*next_pos, false));
             }
         }
+    }
+}
+
+pub fn solve(dimensions: Pos, init_pos: Pos, sender: Sender<Vec<Pos>>) {
+    let Pos {
+        x: width,
+        y: height,
+    } = dimensions;
+
+    let mut jump_acc = vec![];
+    add_jumps(dimensions, init_pos, &mut jump_acc);
+
+    let mut board = vec![vec![false; height]; width];
+    board[init_pos.x][init_pos.y] = true;
+    for jump in jump_acc {
+        let thread_sender = sender.clone();
+        let board = board.clone();
+        let stack = vec![(init_pos, true), (jump, false)];
+        std::thread::spawn(move || {
+            solve_branch(dimensions, thread_sender, board, stack, 1, width * height);
+        });
     }
 }
 
