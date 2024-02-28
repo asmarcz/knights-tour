@@ -1,3 +1,5 @@
+use std::sync::mpsc::Sender;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Pos {
     pub x: usize,
@@ -70,7 +72,7 @@ fn add_jumps(dimensions: Pos, from_pos: Pos, acc: &mut Vec<Pos>) {
     }
 }
 
-pub fn solve(dimensions: Pos, init_pos: Pos) -> impl Iterator<Item = Vec<Pos>> {
+pub fn solve(dimensions: Pos, init_pos: Pos, sender: Sender<Vec<Pos>>) {
     let Pos {
         x: width,
         y: height,
@@ -80,44 +82,44 @@ pub fn solve(dimensions: Pos, init_pos: Pos) -> impl Iterator<Item = Vec<Pos>> {
     let mut visited_sq_cnt = 0;
     let mut stack = vec![(init_pos, false)];
     let mut jump_acc = vec![];
-    std::iter::from_fn(move || {
-        while !stack.is_empty() {
-            let (curr_pos, should_close) = stack.pop().unwrap();
-            let curr_square = unsafe {
-                board
-                    .get_unchecked_mut(curr_pos.x)
-                    .get_unchecked_mut(curr_pos.y)
-            };
-            if should_close {
-                *curr_square = false;
-                visited_sq_cnt -= 1;
-                continue;
-            }
-            *curr_square = true;
-            visited_sq_cnt += 1;
-            stack.push((curr_pos, true));
+    while !stack.is_empty() {
+        let (curr_pos, should_close) = stack.pop().unwrap();
+        let curr_square = unsafe {
+            board
+                .get_unchecked_mut(curr_pos.x)
+                .get_unchecked_mut(curr_pos.y)
+        };
+        if should_close {
+            *curr_square = false;
+            visited_sq_cnt -= 1;
+            continue;
+        }
+        *curr_square = true;
+        visited_sq_cnt += 1;
+        stack.push((curr_pos, true));
 
-            if visited_sq_cnt == width * height {
-                return Some(stack.iter().filter(|p| p.1).map(|p| p.0).collect());
-            }
-
-            jump_acc.truncate(0);
-            add_jumps(dimensions, curr_pos, &mut jump_acc);
-            for next_pos in &jump_acc {
-                let already_visited =
-                    unsafe { board.get_unchecked(next_pos.x).get_unchecked(next_pos.y) };
-                if !already_visited {
-                    stack.push((*next_pos, false));
-                }
-            }
+        if visited_sq_cnt == width * height {
+            sender
+                .send(stack.iter().filter(|p| p.1).map(|p| p.0).collect())
+                .unwrap();
         }
 
-        None
-    })
+        jump_acc.truncate(0);
+        add_jumps(dimensions, curr_pos, &mut jump_acc);
+        for next_pos in &jump_acc {
+            let already_visited =
+                unsafe { board.get_unchecked(next_pos.x).get_unchecked(next_pos.y) };
+            if !already_visited {
+                stack.push((*next_pos, false));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::{self, Receiver, Sender};
+
     use super::{add_jumps, solve, Pos};
 
     #[test]
@@ -132,18 +134,31 @@ mod tests {
 
     #[test]
     fn boards() {
-        assert_eq!(
-            solve(Pos { x: 3, y: 3 }, Pos { x: 0, y: 0 }).collect::<Vec<Vec<Pos>>>(),
-            Vec::<Vec<Pos>>::new()
-        );
-
-        let mut num_solutions = 0;
-        for i in 0..5 {
-            for j in 0..5 {
-                num_solutions += solve(Pos { x: 5, y: 5 }, Pos { x: i, y: j }).count();
-            }
+        {
+            let (tx, rx): (Sender<Vec<Pos>>, Receiver<Vec<Pos>>) = mpsc::channel();
+            solve(Pos { x: 3, y: 3 }, Pos { x: 0, y: 0 }, tx);
+            let res = rx.recv().into_iter().count();
+            assert_eq!(res, 0);
         }
-        // https://en.m.wikipedia.org/wiki/Knight%27s_tour
-        assert_eq!(num_solutions, 1728);
+
+        {
+            let (tx, rx): (Sender<Vec<Pos>>, Receiver<Vec<Pos>>) = mpsc::channel();
+            for i in 0..5 {
+                let thread_tx = tx.clone();
+                std::thread::spawn(move || {
+                    for j in 0..5 {
+                        solve(Pos { x: 5, y: 5 }, Pos { x: i, y: j }, thread_tx.clone());
+                    }
+                });
+            }
+            drop(tx);
+
+            let mut num_solutions = 0;
+            while let Ok(_) = rx.recv() {
+                num_solutions += 1;
+            }
+            // https://en.m.wikipedia.org/wiki/Knight%27s_tour
+            assert_eq!(num_solutions, 1728);
+        }
     }
 }
