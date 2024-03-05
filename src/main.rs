@@ -86,11 +86,15 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             let grid_width = ui.available_width();
             let grid_height = ui.available_height();
-            let rect_side = if grid_width > grid_height {
-                grid_height
-            } else {
-                grid_width
-            } / cmp::max(self.dimensions.x, self.dimensions.y) as f32;
+            let rect_side = {
+                let max_hor_s = grid_width / self.dimensions.x as f32;
+                let max_ver_s = grid_height / self.dimensions.y as f32;
+                if max_hor_s < max_ver_s {
+                    max_hor_s
+                } else {
+                    max_ver_s
+                }
+            };
             let button_size = egui::Vec2 {
                 x: rect_side,
                 y: rect_side,
