@@ -164,6 +164,17 @@ mod tests {
 
         {
             let (tx, rx): (Sender<Vec<Pos>>, Receiver<Vec<Pos>>) = mpsc::channel();
+            solve(Pos { x: 5, y: 5 }, Pos { x: 2, y: 1 }, tx);
+
+            let mut num_solutions = 0;
+            while let Ok(_) = rx.recv() {
+                num_solutions += 1;
+            }
+            assert_eq!(num_solutions, 0);
+        }
+
+        {
+            let (tx, rx): (Sender<Vec<Pos>>, Receiver<Vec<Pos>>) = mpsc::channel();
             for i in 0..5 {
                 let thread_tx = tx.clone();
                 std::thread::spawn(move || {
