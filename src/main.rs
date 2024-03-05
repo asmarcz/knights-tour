@@ -1,7 +1,4 @@
-use std::{
-    cmp,
-    sync::mpsc::{self, Receiver, TryRecvError},
-};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 use eframe::{
     egui::{self},
@@ -61,6 +58,9 @@ impl eframe::App for App {
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
+                    ui.add(egui::Slider::new(&mut self.dimensions.x, 1..=10).text("x"));
+                    ui.add(egui::Slider::new(&mut self.dimensions.y, 1..=10).text("y"));
+
                     ui.label(if self.finished && self.solutions.is_empty() {
                         "No solution!"
                     } else if self.receiver.is_some() {
