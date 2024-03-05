@@ -118,14 +118,14 @@ impl eframe::App for App {
                 ))
                 .show(ui, |ui| {
                     egui::Grid::new("board").spacing([0., 0.]).show(ui, |ui| {
-                        for i in 0..self.dimensions.x {
-                            for j in 0..self.dimensions.y {
+                        for i in 0..self.dimensions.y {
+                            for j in 0..self.dimensions.x {
                                 let btn_txt = self
                                     .curr_sol
                                     .and_then(|idx| {
                                         (&self.solutions[idx])
                                             .iter()
-                                            .position(|&pos| pos.x == i && pos.y == j)
+                                            .position(|&pos| pos.x == j && pos.y == i)
                                             .map(|step_idx| (step_idx + 1).to_string())
                                     })
                                     .unwrap_or_default();
@@ -144,7 +144,7 @@ impl eframe::App for App {
                                     self.solutions.truncate(0);
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
-                                    solve(self.dimensions, Pos { x: i, y: j }, tx);
+                                    solve(self.dimensions, Pos { x: j, y: i }, tx);
                                 };
                             }
                             ui.end_row();
