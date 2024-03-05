@@ -14,6 +14,7 @@ mod solver;
 struct App {
     curr_sol: Option<usize>,
     dimensions: Pos,
+    finished: bool,
     receiver: Option<Receiver<Vec<Pos>>>,
     solutions: Vec<Vec<Pos>>,
 }
@@ -23,6 +24,7 @@ impl Default for App {
         Self {
             curr_sol: None,
             dimensions: Pos { x: 5, y: 5 },
+            finished: false,
             receiver: None,
             solutions: vec![],
         }
@@ -35,6 +37,7 @@ impl eframe::App for App {
             match rx.try_recv() {
                 Ok(solution) => self.solutions.push(solution),
                 Err(TryRecvError::Disconnected) => {
+                    self.finished = true;
                     self.receiver = None;
                 }
                 Err(TryRecvError::Empty) => {}
@@ -45,7 +48,7 @@ impl eframe::App for App {
             ui.style_mut().text_styles = [
                 (
                     egui::TextStyle::Body,
-                    egui::FontId::new(14.0, egui::FontFamily::Proportional),
+                    egui::FontId::new(17.0, egui::FontFamily::Proportional),
                 ),
                 (
                     egui::TextStyle::Button,
@@ -58,6 +61,16 @@ impl eframe::App for App {
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
+                    ui.label(if self.finished && self.solutions.is_empty() {
+                        "No solution!"
+                    } else if self.receiver.is_some() {
+                        "Searching..."
+                    } else if self.finished {
+                        "All solutions found"
+                    } else {
+                        "Select a starting square"
+                    });
+
                     let width = ui.available_width() * 0.9;
                     for i in 0..self.solutions.len() {
                         let btn = egui::Button::new(format!("Solution {}", i))
@@ -127,6 +140,7 @@ impl eframe::App for App {
                                 let square = ui.add(btn);
                                 if square.clicked() {
                                     self.curr_sol = None;
+                                    self.finished = false;
                                     self.solutions.truncate(0);
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
