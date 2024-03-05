@@ -98,9 +98,10 @@ fn solve_branch(
         stack.push((curr_pos, true));
 
         if visited_sq_cnt == target_sq_cnt {
-            sender
-                .send(stack.iter().filter(|p| p.1).map(|p| p.0).collect())
-                .unwrap();
+            match sender.send(stack.iter().filter(|p| p.1).map(|p| p.0).collect()) {
+                Ok(()) => {}
+                Err(_) => return,
+            }
         }
 
         jump_acc.truncate(0);

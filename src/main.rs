@@ -1,6 +1,6 @@
 use std::{
     cmp,
-    sync::mpsc::{self, Receiver, Sender},
+    sync::mpsc::{self, Receiver, TryRecvError},
 };
 
 use eframe::{
@@ -14,6 +14,7 @@ mod solver;
 struct App {
     curr_sol: Option<usize>,
     dimensions: Pos,
+    receiver: Option<Receiver<Vec<Pos>>>,
     solutions: Vec<Vec<Pos>>,
 }
 
@@ -21,7 +22,8 @@ impl Default for App {
     fn default() -> Self {
         Self {
             curr_sol: None,
-            dimensions: Pos { x: 6, y: 6 },
+            dimensions: Pos { x: 5, y: 5 },
+            receiver: None,
             solutions: vec![],
         }
     }
@@ -29,6 +31,16 @@ impl Default for App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if let Some(ref rx) = self.receiver {
+            match rx.try_recv() {
+                Ok(solution) => self.solutions.push(solution),
+                Err(TryRecvError::Disconnected) => {
+                    self.receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+            }
+        }
+
         egui::SidePanel::left("results_panel").show(ctx, |ui| {
             ui.style_mut().text_styles = [
                 (
@@ -44,6 +56,7 @@ impl eframe::App for App {
             egui::ScrollArea::vertical()
                 .auto_shrink(false)
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                .stick_to_bottom(true)
                 .show(ui, |ui| {
                     let width = ui.available_width() * 0.9;
                     for i in 0..self.solutions.len() {
@@ -94,18 +107,30 @@ impl eframe::App for App {
                     egui::Grid::new("board").spacing([0., 0.]).show(ui, |ui| {
                         for i in 0..self.dimensions.x {
                             for j in 0..self.dimensions.y {
-                                let btn =
-                                    egui::Button::new(format!("{}", self.dimensions.x * i + j))
-                                        .min_size(button_size)
-                                        .rounding(egui::Rounding::ZERO)
-                                        .fill(if (i + j) % 2 == 0 {
-                                            light_color
-                                        } else {
-                                            dark_color
-                                        });
+                                let btn_txt = self
+                                    .curr_sol
+                                    .and_then(|idx| {
+                                        (&self.solutions[idx])
+                                            .iter()
+                                            .position(|&pos| pos.x == i && pos.y == j)
+                                            .map(|step_idx| (step_idx + 1).to_string())
+                                    })
+                                    .unwrap_or_default();
+                                let btn = egui::Button::new(btn_txt)
+                                    .min_size(button_size)
+                                    .rounding(egui::Rounding::ZERO)
+                                    .fill(if (i + j) % 2 == 0 {
+                                        light_color
+                                    } else {
+                                        dark_color
+                                    });
                                 let square = ui.add(btn);
                                 if square.clicked() {
-                                    println!("Clicked [{}, {}]", i, j);
+                                    self.curr_sol = None;
+                                    self.solutions.truncate(0);
+                                    let (tx, rx) = mpsc::channel();
+                                    self.receiver = Some(rx);
+                                    solve(self.dimensions, Pos { x: i, y: j }, tx);
                                 };
                             }
                             ui.end_row();
